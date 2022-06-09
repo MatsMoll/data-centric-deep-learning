@@ -58,8 +58,8 @@ def build_regression_test(system, loader):
     # the actual prediction is the argmax of the logits
     preds = torch.argmax(logits, dim=1)
 
-    batch_is_correct = []
-    batch_loss = []
+    batch_is_correct = (preds == labels).numpy().tolist()
+    batch_loss = F.cross_entropy(logits, labels, reduction="none").numpy().tolist()
     # ================================
     # FILL ME OUT
     # 
@@ -176,3 +176,8 @@ if __name__ == "__main__":
   torch.save({'images': images, 'labels': labels}, save_path)
 
   print(f'Saved to {save_path}.')
+
+  saved_data = torch.load(save_path)
+  print(saved_data.keys())
+  print(saved_data['images'].size(), saved_data['labels'].size())
+  print(saved_data['labels'][:10])
