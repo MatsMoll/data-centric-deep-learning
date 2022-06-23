@@ -11,6 +11,7 @@ from os.path import join
 from pathlib import Path
 from pprint import pprint
 from torch.utils.data import DataLoader, TensorDataset
+from torch import cat
 
 from metaflow import FlowSpec, step, Parameter
 from pytorch_lightning import Trainer
@@ -132,7 +133,6 @@ class TrainIdentifyReview(FlowSpec):
     kf = KFold(n_splits=3)    # create kfold splits
 
     for train_index, test_index in kf.split(X):
-      probs_ = None
       # ===============================================
       # FILL ME OUT
       # 
@@ -164,6 +164,24 @@ class TrainIdentifyReview(FlowSpec):
       # Call `predict` on `Trainer` and the test data loader.
       # Convert probabilities back to numpy (make sure 1D).
       # ===============================================
+      train_tensor = torch.Tensor(X[train_index])
+      test_tensor = torch.Tensor(X[test_index])
+      train_y = torch.Tensor(y[train_index])
+      test_y = torch.Tensor(y[test_index])
+      
+      train_set = TensorDataset(train_tensor, train_y)
+      test_set = TensorDataset(test_tensor, test_y)
+      
+      train_dl = DataLoader(train_set, batch_size=self.config.train.optimizer.batch_size)
+      test_dl = DataLoader(test_set, batch_size=self.config.train.optimizer.batch_size)
+
+      system = SentimentClassifierSystem(self.config)
+
+      trainer = Trainer(max_epochs=self.config.train.optimizer.max_epochs)
+      trainer.fit(system, train_dl)
+
+      preds = trainer.predict(system, test_dl)
+      probs_ = cat(preds).squeeze().numpy() # type: ignore
       assert probs_ is not None, "`probs_` is not defined."
       probs[test_index] = probs_
 
@@ -192,7 +210,7 @@ class TrainIdentifyReview(FlowSpec):
     prob = np.stack([1 - prob, prob]).T
   
     # rank label indices by issues
-    ranked_label_issues = None
+    ranked_label_issues = []
     
     # =============================
     # FILL ME OUT
@@ -204,6 +222,9 @@ class TrainIdentifyReview(FlowSpec):
     # 
     # Our solution is one function call.
     # =============================
+    labels = np.asarray(self.all_df.label)
+    ranked_label_issues = find_label_issues(labels, prob, return_indices_ranked_by = "self_confidence")
+    
     assert ranked_label_issues is not None, "`ranked_label_issues` not defined."
 
     # save this to class
@@ -300,6 +321,9 @@ class TrainIdentifyReview(FlowSpec):
     # dm.dev_dataset.data = dev slice of self.all_df
     # dm.test_dataset.data = test slice of self.all_df
     # # ====================================
+    self.dm.train_dataset.data = self.all_df[:train_size]
+    self.dm.dev_dataset.data = self.all_df[train_size:train_size + dev_size]
+    self.dm.test_dataset.data = self.all_df[train_size + dev_size:]
 
     # start from scratch
     system = SentimentClassifierSystem(self.config)
