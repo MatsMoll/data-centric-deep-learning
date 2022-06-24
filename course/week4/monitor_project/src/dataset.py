@@ -51,6 +51,9 @@ class ProductReviewEmbeddings(Dataset):
     # --
     # Convert tokens to lowercase when updating vocab.
     # ===============================
+    tokens = pd.DataFrame({'tokens': np.concatenate(self.data.review.str.split(" ").values)})
+    for token, count in tokens["tokens"].value_counts().iteritems():
+      vocab[token] = count
     return dict(vocab)
 
   def get_labels(self):
@@ -110,6 +113,10 @@ class ProductReviewStream(Dataset):
     # --
     # vocab: dict[str, int]
     # ===============================
+
+    tokens = pd.DataFrame({'tokens': np.concatenate(self.data.review.str.split(" ").values)})
+    for token, count in tokens["tokens"].value_counts().iteritems():
+      vocab[token] = count
     return dict(vocab)
 
   def __getitem__(self, index):

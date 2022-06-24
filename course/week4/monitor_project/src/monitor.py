@@ -5,7 +5,6 @@ from sklearn.isotonic import IsotonicRegression
 
 
 def get_ks_score(tr_probs, te_probs):
-  score = None
   # ============================
   # FILL ME OUT
   # 
@@ -26,6 +25,11 @@ def get_ks_score(tr_probs, te_probs):
   #   predicted probabilities from test test
   # score: float - between 0 and 1
   # ============================
+  ks_result = ks_2samp(
+    tr_probs.numpy(),
+    te_probs.numpy()
+  )
+  score = ks_result.pvalue
   return score
 
 
@@ -68,11 +72,15 @@ def get_hist_score(tr_probs, te_probs, bins=10):
   # Read the documentation for `np.histogram` carefully, in
   # particular what `bin_edges` represent.
   # ============================
+  width = 1 / bins
+  cuts = np.arange(0, 1 + width, width)
+  tr_hist = np.histogram(tr_probs, cuts, density=True)[0]
+  te_hist = np.histogram(te_probs, cuts, density=True)[0]
+  score = np.sum(np.diff(cuts) * np.min([tr_hist, te_hist], axis=0))
   return score
 
 
 def get_vocab_outlier(tr_vocab, te_vocab):
-  score = None
   # ============================
   # FILL ME OUT
   # 
@@ -96,6 +104,9 @@ def get_vocab_outlier(tr_vocab, te_vocab):
   #   Map from word to count for test examples
   # score: float (between 0 and 1)
   # ============================
+  num_seen = np.array([value for key, value in te_vocab.items() if key in tr_vocab]).sum()
+  num_total = np.array(list(te_vocab.values())).sum()
+  score = 1 - (num_seen / num_total)
   return score
 
 
@@ -130,6 +141,11 @@ class MonitoringSystem:
     # 
     # `te_probs_cal`: torch.Tensor
     # ============================
+    reg = IsotonicRegression().fit(tr_probs, tr_labels)
+    
+    tr_probs_cal = torch.Tensor(reg.predict(tr_probs))
+    te_probs_cal = torch.Tensor(reg.predict(te_probs))
+
     return tr_probs_cal, te_probs_cal
 
   def monitor(self, te_vocab, te_probs):
